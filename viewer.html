@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChillTech PCM Cooling Can — 3D Exploded View</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: Arial, Helvetica, sans-serif; }
+    #scene-container { width: 100%; height: 100%; background: #f4f5f7; }
+
+    /* ---- Slider control panel ---- */
+    #controls {
+      position: absolute; top: 16px; left: 16px; z-index: 10;
+      background: #fff; padding: 14px 18px; border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.12); width: 280px;
+      user-select: none;
+    }
+    #controls h2 {
+      font-size: 14px; font-weight: 700; color: #1c1c1c; margin-bottom: 10px;
+    }
+    .slider-labels {
+      display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 4px;
+    }
+    #explode-slider {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+      border-radius: 3px; background: #dde1e6; outline: none; cursor: pointer;
+    }
+    #explode-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: #1f6fe0; cursor: grab; border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    #explode-slider::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%; background: #1f6fe0;
+      cursor: grab; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.25);
+    }
+    .hint { font-size: 10px; color: #999; margin-top: 8px; line-height: 1.4; }
+
+    /* ---- Label toggle ---- */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;
+    }
+    .toggle-label { font-size: 12px; font-weight: 600; color: #333; }
+    .toggle-switch {
+      position: relative; width: 40px; height: 22px; cursor: pointer;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; background: #ccc; border-radius: 11px;
+      transition: background .25s;
+    }
+    .toggle-track::before {
+      content: ''; position: absolute; left: 2px; top: 2px;
+      width: 18px; height: 18px; background: #fff; border-radius: 50%;
+      transition: transform .25s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle-switch input:checked + .toggle-track { background: #1f6fe0; }
+    .toggle-switch input:checked + .toggle-track::before { transform: translateX(18px); }
+
+    /* ---- Title bar ---- */
+    #title-bar {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 10; background: rgba(255,255,255,.92); padding: 8px 20px;
+      border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,.1);
+      font-size: 12px; color: #333; text-align: center; backdrop-filter: blur(6px);
+    }
+    #title-bar strong { color: #1f6fe0; }
+
+    /* ---- CSS2D label styling ---- */
+    .label-wrapper {
+      display: flex; align-items: center; gap: 8px;
+      transform: translate(10px, -10px); white-space: nowrap; pointer-events: none;
+    }
+    .label-num {
+      background: #1f6fe0; color: #fff; border-radius: 50%;
+      width: 22px; height: 22px; display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 700;
+      flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .label-text { line-height: 1.3; }
+    .label-title { font-size: 12px; font-weight: 700; color: #1c1c1c; }
+    .label-sub   { font-size: 10px; color: #666; }
+  </style>
+
+  <!-- Three.js import map (ES modules from CDN) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <div id="scene-container"></div>
+
+  <div id="controls">
+    <h2>🥛 PCM Cartridge Cooling Can</h2>
+    <div class="slider-labels"><span>Assembled</span><span>Exploded</span></div>
+    <input type="range" id="explode-slider" min="0" max="1" step="0.005" value="1" />
+    <div class="hint">
+      🖱️ Drag to rotate &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Slide to assemble/explode
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">🏷️ Labels</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="label-toggle" checked />
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+  </div>
+
+  <div id="title-bar">
+    <strong>ChillTech</strong> PCM Cartridge Cooling Can — 9-Layer Exploded Assembly &nbsp;|&nbsp;
+    SIH Project &nbsp;·&nbsp; Interactive 3D Viewer
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+    // ============================================================
+    // CONSTANTS (matching the React source exactly)
+    // ============================================================
+    const OUTER_R     = 2.3;
+    const BARRIER_R   = 1.85;
+    const CART_RING_R = 1.5;
+    const CART_R      = 0.17;
+    const CHAMBER_R   = 1.0;
+    const CART_COUNT  = 10;
+
+    const COLORS = {
+      lid:     0x2f5f9e,
+      shell:   0x2f5f9e,
+      gasket:  0x161616,
+      foam:    0xe8dcae,
+      barrier: 0xb7bcc3,
+      chamber: 0xc9cdd2,
+      iceBlue: 0xa9d3f2,
+      beige:   0xd8c9a0,
+      cap:     0x7c8087,
+      pin:     0x1f6fe0,
+      ground:  0xe7e9ec,
+    };
+
+    // Assembled Y (nested, real positions)
+    const AY = {
+      lid: 3.825, gasket: 3.59, foamRing: 3.3, barrier: 1.85,
+      cartridges: 1.75, endcaps: 0.66, chamber: 1.9,
+      foamBase: 0.375, shell: 2.0,
+    };
+    // Exploded Y (vertical stack, diagram order 1→9)
+    const EY = {
+      lid: 8.0, gasket: 6.9, foamRing: 5.8, barrier: 4.7,
+      cartridges: 3.6, endcaps: 2.5, chamber: 1.4,
+      foamBase: 0.3, shell: -0.8,
+    };
+
+    const lerp = (a, b, t) => a + (b - a) * t;
+
+    // Track all label + pin objects for toggle
+    const labelObjects = [];
+
+    // ============================================================
+    // SCENE SETUP
+    // ============================================================
+    const container = document.getElementById('scene-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf4f5f7);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(7, 5, 9);
+
+    // WebGL renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // CSS2D renderer (for HTML labels)
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = 'absolute';
+    labelRenderer.domElement.style.top = '0';
+    labelRenderer.domElement.style.left = '0';
+    labelRenderer.domElement.style.pointerEvents = 'none';
+    container.appendChild(labelRenderer.domElement);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight1.position.set(6, 10, 6);
+    dirLight1.castShadow = true;
+    scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+    dirLight2.position.set(-6, 4, -4);
+    scene.add(dirLight2);
+
+    // Orbit controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = true;
+    controls.minDistance = 4;
+    controls.maxDistance = 22;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    // ============================================================
+    // HELPER: Create a numbered callout label (CSS2DObject)
+    // ============================================================
+    function makeLabel(number, title, sub) {
+      const div = document.createElement('div');
+      div.className = 'label-wrapper';
+      div.innerHTML = `
+        <div class="label-num">${number}</div>
+        <div class="label-text">
+          <div class="label-title">${title}</div>
+          ${sub ? `<div class="label-sub">${sub}</div>` : ''}
+        </div>`;
+      const obj = new CSS2DObject(div);
+      labelObjects.push(obj);
+      return obj;
+    }
+
+    // Pin sphere at label anchor
+    function makePin() {
+      const geo = new THREE.SphereGeometry(0.06, 16, 16);
+      const mat = new THREE.MeshStandardMaterial({ color: COLORS.pin });
+      const mesh = new THREE.Mesh(geo, mat);
+      labelObjects.push(mesh);
+      return mesh;
+    }
+
+    // ============================================================
+    // BUILD ALL 9 PARTS  (each in its own THREE.Group)
+    // ============================================================
+    const parts = {};  // { key: { group, ayKey } }
+
+    // ---- Part 1: HDPE Plastic Locking Lid ----
+    {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(OUTER_R, OUTER_R, 0.35, 48),
+        new THREE.MeshStandardMaterial({ color: COLORS.lid, metalness: 0.2, roughness: 0.5 })
+      );
+      g.add(body);
+      const handle = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 0.18, 0.3),
+        new THREE.MeshStandardMaterial({ color: COLORS.lid, metalness: 0.2, roughness: 0.5 })
+      );
+      handle.position.y = 0.28;
+      g.add(handle);
+      const pin = makePin(); pin.position.set(OUTER_R + 0.3, 0.15, 0); g.add(pin);
+      const lbl = makeLabel(1, 'HDPE Plastic Locking Lid');
+      lbl.position.set(OUTER_R + 0.3, 0.15, 0); g.add(lbl);
+      scene.add(g);
+      parts.lid = g;
+    }
+
+    // ---- Part 2: Rubber Food-Grade Gasket ----
+    {
+      const g = new THREE.Group();
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(OUTER_R - 0.1, 0.04, 12, 48),
+        new THREE.MeshStandardMaterial({ color: COLORS.gasket, roughness: 0.9 })
+      );
+      torus.rotation.x = Math.PI / 2;
+      g.add(torus);
+      const pin = makePin(); pin.position.set(OUTER_R + 0.3, 0, 0); g.add(pin);
+      const lbl = makeLabel(2, 'Rubber Food-Grade Gasket');
+      lbl.position.set(OUTER_R + 0.3, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.gasket = g;
+    }
+
+    // ---- Part 3: Polyurethane Foam Insulation (thick ring) ----
+    {
+      const g = new THREE.Group();
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(BARRIER_R + 0.15, 0.2, 16, 48),
+        new THREE.MeshStandardMaterial({ color: COLORS.foam, roughness: 0.95 })
+      );
+      torus.rotation.x = Math.PI / 2;
+      g.add(torus);
+      const pin = makePin(); pin.position.set(OUTER_R + 0.3, 0, 0); g.add(pin);
+      const lbl = makeLabel(3, 'Polyurethane Foam Insulation', '(thick ring)');
+      lbl.position.set(OUTER_R + 0.3, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.foamRing = g;
+    }
+
+    // ---- Part 4: Aluminium Structural Barrier Cylinder ----
+    {
+      const g = new THREE.Group();
+      const cyl = new THREE.Mesh(
+        new THREE.CylinderGeometry(BARRIER_R, BARRIER_R, 2.5, 48, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.barrier, metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide
+        })
+      );
+      g.add(cyl);
+      const pin = makePin(); pin.position.set(BARRIER_R + 0.5, 0, 0); g.add(pin);
+      const lbl = makeLabel(4, 'Aluminium Structural Barrier Cylinder');
+      lbl.position.set(BARRIER_R + 0.5, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.barrier = g;
+    }
+
+    // ---- Part 5: 10× Aluminium Pipe Cartridges ----
+    {
+      const g = new THREE.Group();
+      for (let i = 0; i < CART_COUNT; i++) {
+        const ang = (i / CART_COUNT) * Math.PI * 2;
+        const x = CART_RING_R * Math.cos(ang);
+        const z = CART_RING_R * Math.sin(ang);
+        const color = (i % 2 === 0) ? COLORS.iceBlue : COLORS.beige;
+        const pipe = new THREE.Mesh(
+          new THREE.CylinderGeometry(CART_R, CART_R, 2.3, 20),
+          new THREE.MeshStandardMaterial({ color, metalness: 0.1, roughness: 0.5 })
+        );
+        pipe.position.set(x, 0, z);
+        g.add(pipe);
+      }
+      const pin = makePin(); pin.position.set(CART_RING_R + 0.7, 0, 0); g.add(pin);
+      const lbl = makeLabel(5, '10× Aluminium Pipe Cartridges (3" dia.)', '5 Ice Blue + 5 Beige, alternating');
+      lbl.position.set(CART_RING_R + 0.7, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.cartridges = g;
+    }
+
+    // ---- Part 6: Threaded Metal End Caps ----
+    {
+      const g = new THREE.Group();
+      for (let i = 0; i < CART_COUNT; i++) {
+        const ang = (i / CART_COUNT) * Math.PI * 2;
+        const x = CART_RING_R * Math.cos(ang);
+        const z = CART_RING_R * Math.sin(ang);
+        const cap = new THREE.Mesh(
+          new THREE.CylinderGeometry(CART_R + 0.02, CART_R + 0.02, 0.12, 20),
+          new THREE.MeshStandardMaterial({ color: COLORS.cap, metalness: 0.8, roughness: 0.35 })
+        );
+        cap.position.set(x, 0, z);
+        g.add(cap);
+      }
+      const pin = makePin(); pin.position.set(CART_RING_R + 0.7, 0, 0); g.add(pin);
+      const lbl = makeLabel(6, 'Threaded Metal End Caps', '(for each pipe)');
+      lbl.position.set(CART_RING_R + 0.7, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.endcaps = g;
+    }
+
+    // ---- Part 7: Inner Milk Chamber (brushed aluminium, open top) ----
+    {
+      const g = new THREE.Group();
+      const wall = new THREE.Mesh(
+        new THREE.CylinderGeometry(CHAMBER_R, CHAMBER_R, 2.6, 48, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.chamber, metalness: 0.85, roughness: 0.2, side: THREE.DoubleSide
+        })
+      );
+      g.add(wall);
+      const bottom = new THREE.Mesh(
+        new THREE.CircleGeometry(CHAMBER_R, 48),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.chamber, metalness: 0.85, roughness: 0.2, side: THREE.DoubleSide
+        })
+      );
+      bottom.position.y = -1.3;
+      bottom.rotation.x = -Math.PI / 2;
+      g.add(bottom);
+      const pin = makePin(); pin.position.set(CHAMBER_R + 0.3, 0, 0); g.add(pin);
+      const lbl = makeLabel(7, 'Inner Milk Chamber', '(Brushed Aluminium)');
+      lbl.position.set(CHAMBER_R + 0.3, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.chamber = g;
+    }
+
+    // ---- Part 8: Polyurethane Foam Base Pad ----
+    {
+      const g = new THREE.Group();
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(CHAMBER_R + 0.4, 0.22, 16, 48),
+        new THREE.MeshStandardMaterial({ color: COLORS.foam, roughness: 0.95 })
+      );
+      torus.rotation.x = Math.PI / 2;
+      g.add(torus);
+      const pin = makePin(); pin.position.set(OUTER_R + 0.3, 0, 0); g.add(pin);
+      const lbl = makeLabel(8, 'Polyurethane Foam Base Pad', '(thick)');
+      lbl.position.set(OUTER_R + 0.3, 0, 0); g.add(lbl);
+      scene.add(g);
+      parts.foamBase = g;
+    }
+
+    // ---- Part 9: HDPE Plastic Outer Drum Shell ----
+    {
+      const g = new THREE.Group();
+      const wall = new THREE.Mesh(
+        new THREE.CylinderGeometry(OUTER_R, OUTER_R, 4.0, 48, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.shell, metalness: 0.15, roughness: 0.55, side: THREE.DoubleSide
+        })
+      );
+      g.add(wall);
+      const bottom = new THREE.Mesh(
+        new THREE.CircleGeometry(OUTER_R, 48),
+        new THREE.MeshStandardMaterial({
+          color: COLORS.shell, metalness: 0.15, roughness: 0.55, side: THREE.DoubleSide
+        })
+      );
+      bottom.position.y = -2.0;
+      bottom.rotation.x = -Math.PI / 2;
+      g.add(bottom);
+      const pin = makePin(); pin.position.set(OUTER_R + 0.3, -1.3, 0); g.add(pin);
+      const lbl = makeLabel(9, 'HDPE Plastic Outer Drum Shell');
+      lbl.position.set(OUTER_R + 0.3, -1.3, 0); g.add(lbl);
+      scene.add(g);
+      parts.shell = g;
+    }
+
+    // ---- Ground Plane ----
+    {
+      const ground = new THREE.Mesh(
+        new THREE.CircleGeometry(14, 64),
+        new THREE.MeshStandardMaterial({ color: COLORS.ground, roughness: 1 })
+      );
+      ground.position.y = -3.4;
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+    }
+
+    // ============================================================
+    // SLIDER → UPDATE POSITIONS
+    // ============================================================
+    const slider = document.getElementById('explode-slider');
+    let currentT = parseFloat(slider.value);
+
+    function updatePositions(t) {
+      parts.lid.position.y        = lerp(AY.lid,        EY.lid,        t);
+      parts.gasket.position.y     = lerp(AY.gasket,     EY.gasket,     t);
+      parts.foamRing.position.y   = lerp(AY.foamRing,   EY.foamRing,   t);
+      parts.barrier.position.y    = lerp(AY.barrier,    EY.barrier,    t);
+      parts.cartridges.position.y = lerp(AY.cartridges, EY.cartridges, t);
+      parts.endcaps.position.y    = lerp(AY.endcaps,    EY.endcaps,    t);
+      parts.chamber.position.y    = lerp(AY.chamber,    EY.chamber,    t);
+      parts.foamBase.position.y   = lerp(AY.foamBase,   EY.foamBase,   t);
+      parts.shell.position.y      = lerp(AY.shell,      EY.shell,      t);
+    }
+
+    slider.addEventListener('input', (e) => {
+      currentT = parseFloat(e.target.value);
+      updatePositions(currentT);
+    });
+
+    // ============================================================
+    // LABEL TOGGLE
+    // ============================================================
+    const labelToggle = document.getElementById('label-toggle');
+    labelToggle.addEventListener('change', () => {
+      const visible = labelToggle.checked;
+      labelObjects.forEach(obj => { obj.visible = visible; });
+    });
+
+    // Initial positions
+    updatePositions(currentT);
+
+    // ============================================================
+    // RESIZE HANDLER
+    // ============================================================
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================
+    // RENDER LOOP
+    // ============================================================
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
